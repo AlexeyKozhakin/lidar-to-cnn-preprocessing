@@ -1,0 +1,9 @@
+comand to cut tiles of las files:
+las2las -i input.laz -o output.las
+lastile -i L004.las -tile_size 50
+lasmerge -i *.las -o output.las
+
+lasthin -i input.las -step 1 -o output.las
+lasnoise -i input.las -isolated 5 -step 5 -o output.las
+
+

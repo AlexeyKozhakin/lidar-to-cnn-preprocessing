@@ -1,3 +1,11 @@
+.idea
+сравнение/
+models_saved/
+data_las_musac/
+*.zip
+data/
+data_img/
+*.npy
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
