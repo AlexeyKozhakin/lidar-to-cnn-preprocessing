@@ -7,10 +7,18 @@ import matplotlib.pyplot as plt
 #     r"C:\Users\alexe\Downloads\UM\work\Data"
 #     r"\2012-20240803T112213Z-001\2018-20240913T181437Z-001"
 #     r"\city\city\437650_3988700.las")
+'''
 las_file = laspy.read(
-    r"C:\Users\alexe\Downloads\UM\work\Data\2012-20240803T112213Z-001"
-    r"\2018-20240913T181437Z-001\city_san_gwann\san_gwan.las")
-
+    r"D:\data\las_org\data_las_stpls3d\all_org_las_cut_256"
+    r"\4_points_GTv2_0_0.las")
+'''
+las_file = laspy.read(
+    r"D:\data\las_org\san_gwan_256_256_1"
+    r"\453632_3974144.las")   
+ 
+    # Выводим количество точек в файле
+print(f"Количество точек в LAS файле: {len(las_file.points)}")
+'''
 # Шаг 2: Извлечение координат высоты (Z)
 z_coordinates = las_file.z
 
@@ -26,7 +34,8 @@ plt.ylabel("Количество точек", fontsize=14)
 # Шаг 5: Показать гистограмму
 plt.grid(True)
 plt.show()
-
+'''
+'''
 # Шаг 2: Извлечение координат высоты (Z)
 z_coordinates = las_file.z
 
@@ -49,3 +58,4 @@ plt.ylabel("Количество точек", fontsize=14)
 # Шаг 7: Показать гистограмму
 plt.grid(True)
 plt.show()
+'''

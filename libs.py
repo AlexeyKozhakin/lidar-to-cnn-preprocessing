@@ -4,9 +4,13 @@ import numpy as np
 import os
 from sklearn.model_selection import train_test_split
 from scipy.interpolate import NearestNDInterpolator
-
+import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
 from PIL import Image
+import open3d as o3d
+
+
+
 def ply_to_las(ply_file_path, las_file_path, dataset = 'toronto3d'):
     """
     Конвертирует PLY файл в LAS файл с координатами и метками классификации.
@@ -59,7 +63,7 @@ def create_directory(path):
 
 # Функция для генерации данных (используем ранее написанные функции)
 def generate_data_from_las(file_path, original_output_path, segment_output_path,
-                           class_colors,
+                           class_colors=False,
                            grid_size=500, mask=False):
     # Генерация оригинального изображения (высота)
     las_to_image(file_path, original_output_path, grid_size)
@@ -109,7 +113,7 @@ def generate_dataset(las_files, output_dir,
             print(f"Сгенерировано изображение и маска для {file_name}")
 
 
-def generate_dataset_predict(las_files, output_dir, dataset_type='test', grid_size=500, mask=False):
+def generate_dataset_predict(las_files, output_dir, dataset_type='test', grid_size=512, mask=False):
 
 
         original_dir = os.path.join(output_dir, dataset_type, 'original')
@@ -128,7 +132,7 @@ def generate_dataset_predict(las_files, output_dir, dataset_type='test', grid_si
             segment_output_path = os.path.join(segment_dir, file_name)
 
             # Генерация данных
-            generate_data_from_las(file_path, original_output_path, segment_output_path, grid_size, mask=False)
+            generate_data_from_las(file_path, original_output_path, segment_output_path, grid_size=grid_size, mask=False)
 
             print(f"Сгенерировано изображение и маска для {file_name}")
 
@@ -465,3 +469,153 @@ def get_filenames_without_extension(directory):
     filenames_without_extension = [os.path.splitext(filename)[0] for filename in filenames]
 
     return filenames_without_extension
+
+
+def get_file_sizes(directory):
+    file_sizes = []
+    # Проходим по каждому файлу и подкаталогу
+    for foldername, subfolders, filenames in os.walk(directory):
+        for filename in filenames:
+            filepath = os.path.join(foldername, filename)
+            try:
+                # Получаем размер файла в байтах и добавляем в список
+                file_size = os.path.getsize(filepath)
+                file_sizes.append(file_size)
+            except OSError:
+                # Если файл не доступен или возникла ошибка доступа
+                print(f"Не удалось получить размер файла: {filepath}")
+    return file_sizes
+
+def plot_histogram(file_sizes, bin_size=50):
+    plt.figure(figsize=(10, 6))
+    # Строим гистограмму по размерам файлов
+    plt.hist(file_sizes, bins=bin_size, edgecolor='black')
+    plt.title('Histogram of File Sizes')
+    plt.xlabel('File Size (bytes)')
+    plt.ylabel('Frequency')
+    plt.grid(True)
+    plt.show()
+    
+    
+
+def count_points_in_las(file_path):
+    """Возвращает количество точек в LAS файле."""
+    las = laspy.read(file_path)
+    return len(las.points)
+
+def random_point_sampling(points, n_samples):
+    """Случайно выбирает n_samples точек из облака."""
+    if len(points) <= n_samples:
+        return points  # Если точек меньше или равно n_samples, возвращаем все точки
+    
+    indices = np.random.choice(len(points), n_samples, replace=False)  # Случайные индексы без замены
+    return points[indices]
+
+def process_las_files_gen_clouds(directory, output_path, num_points_lim = 4096):
+    """Считывает LAS файлы и записывает данные в .npy файл."""
+    data_list = []
+
+    las_files = [f for f in os.listdir(directory) if f.endswith('.las')]
+    
+    num_file = 0
+    for las_file in las_files:
+        num_file+=1
+        if num_file%100==0:
+            print(num_file)
+        file_path = os.path.join(directory, las_file)
+        try:
+            num_points = count_points_in_las(file_path)
+
+            if num_points > num_points_lim:
+                las = laspy.read(file_path)
+                points = np.vstack((las.x, las.y, las.z)).T  # Формируем массив точек (N, 3)
+                classes = las.classification  # Извлечение классов точек
+
+                # Случайно выбираем 4096 точек
+                sampled_points = random_point_sampling(points, num_points_lim)
+                
+                # Получаем классы для отобранных точек
+                sampled_indices = np.random.choice(num_points, num_points_lim, replace=False)  # Получаем индексы для классов
+                sampled_classes = classes[sampled_indices]  # Получаем классы для выбранных точек
+
+                # Объединяем координаты и классы
+                data_list.append(np.hstack((sampled_points, sampled_classes[:, np.newaxis])))  # Добавляем класс
+        except:
+            print(f'file {las_file} возникла ошибка')
+    # Преобразуем в массив NumPy
+    if data_list:
+        final_data = np.array(data_list)
+        np.save(output_path, final_data)  # Сохраняем в .npy файл
+        print(f"Данные успешно сохранены в {output_path}.")
+    else:
+        print(f"Нет файлов с количеством точек больше {num_points_lim}.")
+        
+
+
+def process_las_files_gen_clouds_by_batch(directory, output_path, num_points_lim=4096, num_files=1):
+    """
+    Считывает LAS файлы и записывает данные в несколько .npy файлов, записывая их по частям, чтобы экономить память.
+    
+    Параметры:
+    directory (str): Путь к директории с LAS файлами.
+    output_path (str): Базовый путь для сохранения файлов .npy.
+    num_points_lim (int): Лимит на количество точек в каждом файле (по умолчанию 4096).
+    num_files (int): Количество файлов для разделения (по умолчанию 1).
+    """
+    data_list = []
+    las_files = [f for f in os.listdir(directory) if f.endswith('.las')]
+    
+    num_file = 0
+    total_points = 0
+    points_per_file = 0
+
+    # Определяем количество файло в которые будут записаны точки
+    target_points_per_file = len(las_files) // num_files
+    file_counter = 1
+
+    for las_file in las_files:
+        num_file += 1
+        if num_file % 100 == 0:
+            print(f"Обработано {num_file} файлов")
+
+        file_path = os.path.join(directory, las_file)
+        try:
+            num_points = count_points_in_las(file_path)
+
+            if num_points > num_points_lim:
+                las = laspy.read(file_path)
+                points = np.vstack((las.x, las.y, las.z)).T  # Формируем массив точек (N, 3)
+                classes = las.classification  # Извлечение классов точек
+
+                # Случайно выбираем 4096 точек
+                sampled_points = random_point_sampling(points, num_points_lim)
+                
+                # Получаем классы для отобранных точек
+                sampled_indices = np.random.choice(num_points, num_points_lim, replace=False)
+                sampled_classes = classes[sampled_indices]  # Получаем классы для выбранных точек
+
+                # Объединяем координаты и классы
+                data_list.append(np.hstack((sampled_points, sampled_classes[:, np.newaxis])))
+                points_per_file += 1
+
+                # Записываем в файл, когда накопили достаточно данных
+                if points_per_file >= target_points_per_file:
+                    chunk_output_path = f"{output_path}_part{file_counter}.npy"
+                    np.save(chunk_output_path, np.array(data_list))
+                    print(f"Часть {file_counter} сохранена в {chunk_output_path}.")
+                    data_list = []  # Очищаем данные для следующей партии
+                    points_per_file = 0
+                    file_counter += 1
+
+        except Exception as e:
+            print(f"Ошибка при обработке файла {las_file}: {e}")
+
+    # Если остались необработанные данные, сохраняем их в последний файл
+    if data_list:
+        chunk_output_path = f"{output_path}_part{file_counter}.npy"
+        np.save(chunk_output_path, np.array(data_list))
+        print(f"Оставшаяся часть сохранена в {chunk_output_path}.")
+    else:
+        print(f"Нет файлов с количеством точек больше {num_points_lim}.")
+
+
