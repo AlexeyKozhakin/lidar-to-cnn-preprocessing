@@ -1,4 +1,4 @@
-from libs import (ply_to_las, generate_dataset, mask_to_las_with_class_nn_rgb,
+from libs import (ply_to_las_rgb, generate_dataset, mask_to_las_with_class_nn_rgb,
                   generate_dataset_predict,
                   process_las_files,
                   get_filenames_without_extension
@@ -6,7 +6,31 @@ from libs import (ply_to_las, generate_dataset, mask_to_las_with_class_nn_rgb,
 import os
 import glob
 import subprocess
+from multiprocessing import Pool
+import time
 
+def process_file(file_data):
+    """
+    Обработка одного файла PLY и его сохранение как LAS.
+    """
+    file, ply_dir, las_dir = file_data
+    print(f'Now processing {file}')
+    ply_file = os.path.join(ply_dir, file + '.ply')
+    las_file = os.path.join(las_dir, file + '.las')
+    ply_to_las_rgb(ply_file, las_file, dataset='stpls3d')
+
+
+def main_parallel_ply2las():
+    ply_dir = r"C:\Users\alexe\Downloads\UM\work\Data\STPLS3D_ply\STPLS3D_ply\STPLS3D\RealWorldData"
+    las_dir = r"D:\data\las_org\data_las_stpls3d\all_org_las_rgb"
+    filenames = get_filenames_without_extension(ply_dir)
+
+    # Создание списка аргументов для передачи каждому процессу
+    file_data_list = [(file, ply_dir, las_dir) for file in filenames]
+
+    # Параллельная обработка с использованием пула процессов
+    with Pool(processes=4) as pool:
+        pool.map(process_file, file_data_list)
 
 
 ''' Старая версия
@@ -128,20 +152,22 @@ class_colors_hessinheim = {
 
 # Пример использования функции
 ply_to_las_processing = False
+ply_to_las_parallel = True
 cut_las = False
 gen_dataset = False
 gen_predict_dataset = False
 gen_colored_las = False
 clean_dataset = False #Убрать выбросы по Z
 show_stat_files = False
-gen_clouds_dataset = True
+gen_clouds_dataset = False
 
-# if ply_to_las_processing:
-#     ply_file = r"C:\Users\alexe\Downloads\UM\work\Data" \
-#                 r"\STPLS3D_ply\STPLS3D_ply\STPLS3D\Synthetic_v1\LosAngeles.ply"
-#     las_file = r"C:\Users\alexe\PycharmProjects\lidar-to-cnn-preprocessing" \
-#                 r"\data\las_org\data_las_stpls3d\LosAngeles.las"
-#     ply_to_las(ply_file, las_file, dataset = 'stpls3d')
+if __name__ == '__main__':
+    if ply_to_las_parallel:
+        start = time.time()
+        main_parallel_ply2las()
+        end = time.time()
+        print(end-start)
+
 
 
 if ply_to_las_processing:
@@ -150,31 +176,31 @@ if ply_to_las_processing:
                 # r"\STPLS3D_ply\STPLS3D_ply\STPLS3D\Synthetic_v3"
     # las_dir = r"C:\Users\alexe\PycharmProjects\lidar-to-cnn-preprocessing" \
     #             r"\data\las_org\data_las_stpls3d\all_org_las"
-    las_dir = r"D:\data\las_org\data_las_stpls3d\all_org_las"
+    las_dir = r"D:\data\las_org\data_las_stpls3d\all_org_las_rgb"
     filenames = get_filenames_without_extension(ply_dir)
     for file in filenames:
     #for file in ['427250_3989900']:
         print(f'Now processing {file}')
         ply_file = os.path.join(ply_dir, file + '.ply')
         las_file = os.path.join(las_dir, file+'.las')
-        ply_to_las(ply_file, las_file, dataset='stpls3d')
+        ply_to_las_rgb(ply_file, las_file, dataset='stpls3d')
 
 if cut_las:
 
     # Указываем путь к исходной директории с .las файлами
 #    input_directory = r"D:\data\las_org\data_las_stpls3d\all_org_las_test_1"
-    input_directory = r"D:\data\las_org\data_las_stpls3d\all_org_las"
+    input_directory = r"D:\data\las_org\data_las_stpls3d\all_org_las_rgb"
 
     # Указываем путь к директории, куда будут сохраняться нарезанные файлы
     #output_directory = r"D:\data\las_org\data_las_stpls3d\all_org_las_cut_test_32"
-    output_directory = r"D:\data\las_org\data_las_stpls3d\all_org_las_cut_8"
+    output_directory = r"D:\data\las_org\data_las_stpls3d\all_org_las_cut_64"
 
     # Создаем выходную директорию, если она не существует
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
 
     # Размер тайла
-    tile_size = 8
+    tile_size = 64
 
     # Проходим по всем файлам в исходной директории
     filenames = os.listdir(input_directory)
@@ -209,14 +235,14 @@ if cut_las:
 
 if gen_dataset:
     # Пример использования
-    directory = r'D:\data\las_org\data_las_stpls3d\all_org_las_cut_256'
+    directory = r'D:\data\las_org\data_las_stpls3d\all_org_las_cut_64'
     las_files = os.listdir(directory)
     las_files = [os.path.join(directory,las_file) for las_file in las_files]
 
-    output_dir = r"D:\data\data_for_training\data_training_stpl3d_256_2048"
+    output_dir = r"D:\data\data_for_training\data_training_stpl3d_64_512"
     generate_dataset(las_files, output_dir,
                      class_colors_stpls3d,
-                     train_size=0.8, val_size=0.1, test_size=0.1, grid_size=2048)
+                     train_size=0.8, val_size=0.1, test_size=0.1, grid_size=512)
 
 
 

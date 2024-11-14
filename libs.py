@@ -9,6 +9,67 @@ from scipy.interpolate import griddata
 from PIL import Image
 import open3d as o3d
 
+import numpy as np
+import laspy
+from plyfile import PlyData
+
+
+def ply_to_las_rgb(ply_file_path, las_file_path, dataset='toronto3d'):
+    """
+    Конвертирует PLY файл в LAS файл с координатами, цветом и метками классификации.
+
+    :param ply_file_path: Путь к PLY файлу.
+    :param las_file_path: Путь для сохранения выходного LAS файла.
+    :param dataset: Название датасета для определения атрибутов.
+    """
+    # Открываем PLY файл
+    ply_data = PlyData.read(ply_file_path)
+
+    # Доступ к элементам vertex
+    vertex_data = ply_data['vertex'].data
+
+    # Извлекаем координаты x, y, z
+    x = vertex_data['x']
+    y = vertex_data['y']
+    z = vertex_data['z']
+
+    # Извлекаем метки классификации на основе датасета
+    if dataset == 'toronto3d':
+        labels = vertex_data['scalar_Label']  # Метки классификации
+    elif dataset == 'stpls3d':
+        labels = vertex_data['class']
+
+    # Проверяем, присутствуют ли цветовые атрибуты в PLY файле
+    if 'red' in vertex_data.dtype.names and 'green' in vertex_data.dtype.names and 'blue' in vertex_data.dtype.names:
+        r = vertex_data['red']
+        g = vertex_data['green']
+        b = vertex_data['blue']
+    else:
+        raise ValueError("Цветовые атрибуты (red, green, blue) отсутствуют в PLY файле.")
+
+    # Создаем массив с координатами точек (x, y, z)
+    points = np.vstack([x, y, z]).T
+
+    # Создание LAS файла с версией 1.2 и форматом точек 3
+    las_file = laspy.create(file_version="1.2", point_format=3)
+
+    # Установка координат в LAS файл
+    las_file.x = points[:, 0]
+    las_file.y = points[:, 1]
+    las_file.z = points[:, 2]
+
+    # Установка меток классификации в LAS файл
+    las_file.classification = labels.astype(np.uint8)  # Преобразуем метки в uint8
+
+    # Установка цветовых атрибутов в LAS файл
+    las_file.red = r.astype(np.uint16)  # Значения r, g, b должны быть в диапазоне от 0 до 65535
+    las_file.green = g.astype(np.uint16)
+    las_file.blue = b.astype(np.uint16)
+
+    # Сохранение LAS файла
+    las_file.write(las_file_path)
+
+    print(f"Файл {las_file_path} успешно создан.")
 
 
 def ply_to_las(ply_file_path, las_file_path, dataset = 'toronto3d'):
@@ -66,7 +127,7 @@ def generate_data_from_las(file_path, original_output_path, segment_output_path,
                            class_colors=False,
                            grid_size=500, mask=False):
     # Генерация оригинального изображения (высота)
-    las_to_image(file_path, original_output_path, grid_size)
+    las_to_image_rgba(file_path, original_output_path, grid_size)
 
     if mask:
     # Генерация маски сегментации
@@ -137,6 +198,46 @@ def generate_dataset_predict(las_files, output_dir, dataset_type='test', grid_si
             print(f"Сгенерировано изображение и маска для {file_name}")
 
 
+def las_to_image_rgba(file_path, output_image_path, grid_size=500):
+    # Загрузка файла .las
+    las = laspy.read(file_path)
+
+    # Извлечение координат и цветовых атрибутов
+    x, y, z = las.x, las.y, las.z
+    r, g, b = las.red, las.green, las.blue
+
+    # Смещение координат, чтобы они начинались с 0
+    x_min, y_min = np.min(x), np.min(y)
+    x_shifted = x - x_min
+    y_shifted = y - y_min
+
+    # Создание сетки grid_size на grid_size
+    xi = np.linspace(0, np.max(x_shifted), grid_size)
+    yi = np.linspace(0, np.max(y_shifted), grid_size)
+    xi, yi = np.meshgrid(xi, yi)
+
+    # Интерполяция для r, g, b и z-значений на сетке
+    ri = griddata((x_shifted, y_shifted), r, (xi, yi), method='nearest')
+    gi = griddata((x_shifted, y_shifted), g, (xi, yi), method='nearest')
+    bi = griddata((x_shifted, y_shifted), b, (xi, yi), method='nearest')
+    zi = griddata((x_shifted, y_shifted), z, (xi, yi), method='nearest')
+
+    # Нормализация значений r, g, b в диапазон [0, 255]
+    ri_normalized = np.clip(ri / np.max(r) * 255, 0, 255).astype(np.uint8)
+    gi_normalized = np.clip(gi / np.max(g) * 255, 0, 255).astype(np.uint8)
+    bi_normalized = np.clip(bi / np.max(b) * 255, 0, 255).astype(np.uint8)
+
+    # Нормализация значений z для альфа-канала в диапазон [0, 255]
+    zi_normalized = ((zi - np.min(zi)) / (np.max(zi) - np.min(zi)) * 255).astype(np.uint8)
+
+    # Создание 4-х канального изображения (RGBA)
+    rgba_image = np.stack([ri_normalized, gi_normalized, bi_normalized, zi_normalized], axis=-1)
+
+    # Сохранение изображения в файл
+    img = Image.fromarray(rgba_image, mode='RGBA')
+    img.save(output_image_path)
+
+    print(f"Изображение сохранено по пути: {output_image_path}")
 
 def las_to_image(file_path, output_image_path, grid_size=500):
     # Загрузка файла .las

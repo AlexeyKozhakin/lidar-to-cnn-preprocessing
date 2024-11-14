@@ -3,6 +3,7 @@
 models_saved/
 data_las_musac/
 *.zip
+*.png
 data/
 data_img/
 *.npy
