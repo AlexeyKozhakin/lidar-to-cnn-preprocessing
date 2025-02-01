@@ -7,7 +7,6 @@ from scipy.interpolate import NearestNDInterpolator
 import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
 from PIL import Image
-import open3d as o3d
 
 import numpy as np
 import laspy

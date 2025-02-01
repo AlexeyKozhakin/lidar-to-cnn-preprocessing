@@ -152,12 +152,12 @@ class_colors_hessinheim = {
 
 # Пример использования функции
 ply_to_las_processing = False
-ply_to_las_parallel = True
+ply_to_las_parallel = False
 cut_las = False
 gen_dataset = False
 gen_predict_dataset = False
 gen_colored_las = False
-clean_dataset = False #Убрать выбросы по Z
+clean_dataset = True #Убрать выбросы по Z
 show_stat_files = False
 gen_clouds_dataset = False
 
@@ -286,9 +286,7 @@ if clean_dataset:
     # directory = (r"C:\Users\alexe\PycharmProjects\lidar-to-cnn-preprocessing"
     # r"\data\las_org"
     # r"\data_las_musac_2018_san_gwan")
-    directory = (r"C:\Users\alexe\Downloads\UM\work\Data\2012-20240803T112213Z-001\2018-20240913T181437Z-001"
-                 r"\city_san_gwann"
-                 r"\san_gwan_256_256_1")
+    directory = "/home/alexey/MUSAC/data/Malta/L_453_3974._100x100"
     process_las_files(directory)
 
 if show_stat_files:

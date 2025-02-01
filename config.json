@@ -1,0 +1,9 @@
+{
+    "points_per_cloud": 4096,
+    "num_files": 100,
+    "batches_per_file": 1,
+    "input_directory": "/mnt/working-ssd/alexey_kozhakin/MUSAC/data/STPLS3D/ml_data_training/cut_test_32",
+    "output_directory": "/mnt/working-ssd/alexey_kozhakin/MUSAC/data/STPLS3D/pt_data_for_training_32_4096_test",
+    "output_files": "data",
+    "num_processes": 90
+}

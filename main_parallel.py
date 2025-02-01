@@ -105,28 +105,31 @@ class_colors_stpls3d = {
 # Пример использования функции
 
 ply_to_las_parallel = False
-cut_las_parallel = False
+cut_las_parallel = True
+show_stat_files_parallel = False
 gen_dataset_parallel = False
-show_stat_files_parallel = True
+gen_clouds_dataset_parallel = False
+
+data_dir = '/mnt/working-ssd/alexey_kozhakin/MUSAC/data/STPLS3D'
 
 if __name__ == '__main__':
     # Трансформируем оргиниальный датасет из ply в las
     if ply_to_las_parallel:
-        ply_dir = r"C:\Users\alexe\Downloads\UM\work\Data" \
-                  r"\STPLS3D_ply\STPLS3D_ply\STPLS3D\RealWorldData"
-        las_dir = r"D:\data\las_org\data_las_stpls3d\all_org_las_rgb"
+        
+        ply_dir = os.path.join(data_dir,"data_org")
+        las_dir =  os.path.join(data_dir,"data_las")
         start = time.time()
-        main_parallel_ply2las(num_workers=2, ply_dir=ply_dir, las_dir=las_dir)
+        main_parallel_ply2las(num_workers=67, ply_dir=ply_dir, las_dir=las_dir)
         end = time.time()
         print(end - start)
 
     # Нарезаем на tiles
     if cut_las_parallel:
         # Указываем путь к исходной директории с .las файлами
-        input_directory = r"D:\data\las_org\data_las_stpls3d\all_org_las_rgb"
+        input_directory = os.path.join(data_dir,"data_las")
         # Указываем путь к директории, куда будут сохраняться нарезанные файлы
-        output_directory = r"D:\data\las_org\data_las_stpls3d\all_org_las_cut_64"
-        main_parallel_cut_tiles(input_directory, output_directory, tile_size=64, num_processes=4)
+        output_directory = os.path.join(data_dir,"data_las_cut_100")
+        main_parallel_cut_tiles(input_directory, output_directory, tile_size=100, num_processes=90)
 
 #========================================> Анализ нарезанных файлов <==================================================
 
@@ -135,9 +138,9 @@ if __name__ == '__main__':
         import numpy as np
 
         # Пример использования
-        directory = r"D:\data\las_org\data_las_stpls3d\all_org_las_cut_64"
+        directory = os.path.join(data_dir,"data_las_cut_64")
         start = time.time()
-        file_sizes = get_file_sizes_parallel(directory, num_processes=7)
+        file_sizes = get_file_sizes_parallel(directory, num_processes=90)
         end = time.time()
         print(round(end-start))
         # Вычисление статистик
@@ -145,6 +148,7 @@ if __name__ == '__main__':
         mean = np.mean(file_sizes)
         std = np.std(file_sizes)
         max_value = np.max(file_sizes)
+        min_value = np.min(file_sizes)
         mean_minus_3std = mean - 3 * std
 
         # Вывод результатов
@@ -152,6 +156,7 @@ if __name__ == '__main__':
         print(f'Files: {length}')
         print(f'Mean: {mean/1e6}')
         print(f'STD: {std/1e6}')
+        print(f'Min: {min_value/1e6}')
         print(f'Max: {max_value/1e6}')
         print(f'Mean - 3*STD: {mean_minus_3std/1e6}')
 
@@ -164,13 +169,50 @@ if __name__ == '__main__':
 
     if gen_dataset_parallel:
         # Пример использования
-        directory = r'D:\data\las_org\data_las_stpls3d\all_org_las_cut_64'
+        directory = os.path.join(data_dir, 'data_las_cut_64')
         las_files = os.listdir(directory)
         las_files = [os.path.join(directory, las_file) for las_file in las_files]
 
-        output_dir = r"D:\data\data_for_training\data_training_stpl3d_64_512"
+        output_dir = os.path.join(data_dir,"data_training_64_512")
+        start = time.time()
         generate_dataset_parallel(las_files, output_dir, class_colors_stpls3d,
-                                  train_size=0.7, val_size=0.15, test_size=0.15, grid_size=512, num_processes=6)
+                                  train_size=0.7, val_size=0.15, test_size=0.15, grid_size=512, num_processes=95)
+        end = time.time()
+        print(round(end-start))
+
+#======================================= Генерация облаков точек ======================================================
+    if gen_clouds_dataset_parallel:
+        from libs_parallel import process_las_files_gen_clouds_parallel
+        import json
+        # Укажите путь к вашему config.json
+        config_path = "config.json"
+        """Загружает настройки из config.json."""
+        with open(config_path, "r") as f:
+            config = json.load(f)
+            # Загружаем настройки
+            points_per_cloud = config["points_per_cloud"]
+            num_files = config["num_files"]
+            batches_per_file = config["batches_per_file"]
+            input_directory = config["input_directory"]
+            output_directory = config["output_directory"]
+            output_files = config["output_files"]
+            num_processes = config["num_processes"]  # Количество процессов для обработки файлов
+            os.makedirs(output_directory, exist_ok=True)
+
+        full_out_dir = os.path.join(output_directory,output_files)
+        # Пример вызова функции
+        start = time.time()
+        process_las_files_gen_clouds_parallel(input_directory, full_out_dir,
+                                              num_files=num_files,
+                                              num_points_lim=points_per_cloud,
+                                              num_processes=num_processes)
+        end = time.time()
+        print(f'Обработка завершена. Время: {end - start:.2f} секунд')
+
+
+
+
+
 
 # if gen_predict_dataset:
 #     # path_to_las = r"C:\Users\alexe\Downloads\UM\work\Data\2012-20240803T112213Z-001\2018-20240913T181437Z-001\city\city"

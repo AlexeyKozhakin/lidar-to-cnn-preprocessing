@@ -10,4 +10,17 @@ lasnoise -i input.las -isolated 5 -step 5 -o output.las
 #Удаление файлов заданного размера
 find /path/to/directory -type f -size -1M -delete
 
+#Удалить каталоги в каталоге
+find ./ -mindepth 1 -type d -exec rm -rf {} +
+
+#Удалить файлы меньше 5М
+find ./ -type f -size -5M -delete
+
+#Посчитать число файлов
+find ./ | wc -
+
+
+#Копирование файлов с сервера
+pscp alexey@10.200.20.20:/home/alexey/MUSAC/codes/lidar-to-cnn-preprocessing/histogram.png C:\Users\alexe\Documents
+
 
