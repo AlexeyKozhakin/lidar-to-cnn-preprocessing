@@ -2,10 +2,15 @@ import os
 from libs import (ply_to_las_rgb,
                   get_filenames_without_extension
                   )
-from multiprocessing import Pool
+
 import subprocess
 import matplotlib.pyplot as plt
-
+import os
+import numpy as np
+import torch
+import random
+from multiprocessing import Pool
+import laspy
 #==========================================> ply2las_rgb <============================================================
 
 def process_file_ply2las_rgb(file_data):
@@ -36,7 +41,7 @@ def process_file_cut_tiles(filename, input_directory, output_directory, tile_siz
     Функция для нарезки одного файла .las с помощью lastile.
     """
     input_file = os.path.join(input_directory, filename)
-    output_subdir = os.path.join(output_directory, os.path.splitext(filename)[0])
+    output_subdir = os.path.join(output_directory, filename.split('.las')[0])
 
     # Создаем подкаталог для текущего файла, если его нет
     if not os.path.exists(output_subdir):
@@ -156,3 +161,89 @@ def generate_dataset_parallel(las_files, output_dir, class_colors,
             pool.starmap(process_file_gen_data, args)
 
     print("Датасет успешно сгенерирован.")
+
+
+#======================================== Генерация облаков точек в параллельном режиме ===============================
+def count_points_in_las(file_path):
+    """Возвращает количество точек в LAS файле."""
+    las = laspy.read(file_path)
+    return len(las.points)
+
+
+def random_point_sampling(points, n_samples):
+    """Случайно выбирает n_samples точек из облака."""
+    if len(points) <= n_samples:
+        return points  # Если точек меньше или равно n_samples, возвращаем все точки
+
+    indices = np.random.choice(len(points), n_samples, replace=False)  # Случайные индексы без замены
+    return points[indices]
+
+
+def process_las_file(file_path, num_points_lim):
+    """Обрабатывает один LAS файл и возвращает выборку точек и классов."""
+    try:
+        num_points = count_points_in_las(file_path)
+        #print(num_points_lim)
+
+        if num_points > num_points_lim:
+            las = laspy.read(file_path)
+            #points = np.vstack((las.x, las.y, las.z)).T  # Формируем массив точек (N, 3)
+            points = np.vstack((las.x, las.y, las.z, las.red, las.green, las.blue)).T
+            classes = las.classification  # Извлечение классов точек
+
+            # Случайно выбираем 4096 точек
+            sampled_points = random_point_sampling(points, num_points_lim)
+
+            # Получаем классы для отобранных точек
+            sampled_indices = np.random.choice(num_points, num_points_lim, replace=False)
+            sampled_classes = classes[sampled_indices]  # Получаем классы для выбранных точек
+
+            # Объединяем координаты и классы
+            return np.hstack((sampled_points, sampled_classes[:, np.newaxis]))
+        else:
+            return None
+    except Exception as e:
+        print(f"Ошибка при обработке файла {file_path}: {e}")
+        return None
+
+
+def process_las_files_gen_clouds_parallel(directory, output_path, num_points_lim=4096, num_files=1,
+                                          num_processes=1):
+    """
+    Считывает LAS файлы и записывает данные в несколько .pt файлов, записывая их по частям, чтобы экономить память.
+
+    Параметры:
+    directory (str): Путь к директории с LAS файлами.
+    output_path (str): Базовый путь для сохранения файлов .pt.
+    num_points_lim (int): Лимит на количество точек в каждом файле (по умолчанию 4096).
+    num_files (int): Количество файлов для разделения (по умолчанию 1).
+    num_processes (int): Количество процессов для параллельной обработки (по умолчанию количество ядер CPU).
+    """
+    las_files = [os.path.join(directory, f) for f in os.listdir(directory) if f.endswith('.las')]
+
+    # Используем Pool для параллельной обработки файлов
+    with Pool(processes=num_processes) as pool:
+        results = pool.starmap(process_las_file, [(file_path, num_points_lim) for file_path in las_files])
+
+    # Фильтруем результаты, чтобы убрать None
+    results = [result for result in results if result is not None]
+
+
+    if not results:
+        print(f"Нет файлов с количеством точек больше {num_points_lim}.")
+        return
+
+    # Разделяем результаты на части и сохраняем в файлы
+    num_results = len(results)
+    results_per_file = num_results // num_files
+
+    for i in range(num_files):
+        start_idx = i * results_per_file
+        end_idx = start_idx + results_per_file if i < num_files - 1 else num_results
+
+        chunk_results = results[start_idx:end_idx]
+        chunk_output_path = f"{output_path}_part{i + 1}.pt"
+        print(torch.tensor(np.array(chunk_results)).shape)
+        # Преобразуем в PyTorch Tensor и сохраняем
+        torch.save(torch.tensor(np.array(chunk_results)), chunk_output_path)
+        print(f"Часть {i + 1} сохранена в {chunk_output_path}.")

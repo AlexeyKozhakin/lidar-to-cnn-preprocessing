@@ -1,0 +1,9 @@
+{
+    "points_per_cloud": 4096,
+    "num_files": 1,
+    "batches_per_file": 50,
+    "input_directory": "D:\\data\\las_org\\data_las_stpls3d\\all_org_las_cut_test_8_mini_100",
+    "output_directory": "D:\\data\\pt_data_for_training",
+    "output_files": "data",
+    "num_processes": 8
+}

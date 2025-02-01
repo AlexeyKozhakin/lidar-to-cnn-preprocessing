@@ -152,10 +152,10 @@ class_colors_hessinheim = {
 
 # Пример использования функции
 ply_to_las_processing = False
-ply_to_las_parallel = True
+ply_to_las_parallel = False
 cut_las = False
 gen_dataset = False
-gen_predict_dataset = False
+gen_predict_dataset = True
 gen_colored_las = False
 clean_dataset = False #Убрать выбросы по Z
 show_stat_files = False
@@ -245,15 +245,14 @@ if gen_dataset:
                      train_size=0.8, val_size=0.1, test_size=0.1, grid_size=512)
 
 
-
 if gen_predict_dataset:
     #path_to_las = r"C:\Users\alexe\Downloads\UM\work\Data\2012-20240803T112213Z-001\2018-20240913T181437Z-001\city\city"
-    path_to_las =  (r"D:\data\las_org\san_gwan_256_256_1")
+    path_to_las =  (r"D:\data\las_org\san_gwan_64x64")
     # Ищем все файлы с расширением .las в указанном каталоге
     las_files = glob.glob(os.path.join(path_to_las, '*.las'))
 
-    output_dir = r"D:\data\data_for_training\data_training_stpl3d_256_2048"
-    generate_dataset_predict(las_files, output_dir, dataset_type='predict', grid_size=2048, mask=False)
+    output_dir = r"D:\data\data_for_training\data_training_stpl3d_64_512"
+    generate_dataset_predict(las_files, output_dir, dataset_type='predict', grid_size=512, mask=False)
 
 
 

@@ -8,7 +8,7 @@ from libs_parallel import (main_parallel_ply2las,
                            generate_dataset_parallel)
 import os
 import time
-
+import glob
 
 
 
@@ -105,9 +105,11 @@ class_colors_stpls3d = {
 # Пример использования функции
 
 ply_to_las_parallel = False
-cut_las_parallel = False
+cut_las_parallel = True
 gen_dataset_parallel = False
-show_stat_files_parallel = True
+show_stat_files_parallel = False
+gen_predict_dataset_parallel = False
+gen_clouds_dataset_parallel = False
 
 if __name__ == '__main__':
     # Трансформируем оргиниальный датасет из ply в las
@@ -123,10 +125,12 @@ if __name__ == '__main__':
     # Нарезаем на tiles
     if cut_las_parallel:
         # Указываем путь к исходной директории с .las файлами
-        input_directory = r"D:\data\las_org\data_las_stpls3d\all_org_las_rgb"
+        #input_directory = r"D:\data\las_org\data_las_stpls3d\all_org_las_rgb"
+        input_directory = r"D:\data\las_org\data_las_stpls3d\all_org_las_rgb_test"
         # Указываем путь к директории, куда будут сохраняться нарезанные файлы
-        output_directory = r"D:\data\las_org\data_las_stpls3d\all_org_las_cut_64"
-        main_parallel_cut_tiles(input_directory, output_directory, tile_size=64, num_processes=4)
+        #output_directory = r"D:\data\las_org\data_las_stpls3d\all_org_las_cut_64"
+        output_directory = r"D:\data\las_org\data_las_stpls3d\all_org_las_cut_rgb_32_test"
+        main_parallel_cut_tiles(input_directory, output_directory, tile_size=32, num_processes=4)
 
 #========================================> Анализ нарезанных файлов <==================================================
 
@@ -172,15 +176,47 @@ if __name__ == '__main__':
         generate_dataset_parallel(las_files, output_dir, class_colors_stpls3d,
                                   train_size=0.7, val_size=0.15, test_size=0.15, grid_size=512, num_processes=6)
 
-# if gen_predict_dataset:
-#     # path_to_las = r"C:\Users\alexe\Downloads\UM\work\Data\2012-20240803T112213Z-001\2018-20240913T181437Z-001\city\city"
-#     path_to_las = (r"D:\data\las_org\san_gwan_256_256_1")
-#     # Ищем все файлы с расширением .las в указанном каталоге
-#     las_files = glob.glob(os.path.join(path_to_las, '*.las'))
-#
-#     output_dir = r"D:\data\data_for_training\data_training_stpl3d_256_2048"
-#     generate_dataset_predict(las_files, output_dir, dataset_type='predict', grid_size=2048, mask=False)
-#
+    if gen_predict_dataset_parallel:
+        # path_to_las = r"C:\Users\alexe\Downloads\UM\work\Data\2012-20240803T112213Z-001\2018-20240913T181437Z-001\city\city"
+        path_to_las = (r"D:\data\las_org\san_gwan_256_256_1")
+        # Ищем все файлы с расширением .las в указанном каталоге
+        las_files = glob.glob(os.path.join(path_to_las, '*.las'))
+
+        output_dir = r"D:\data\data_for_training\data_training_stpl3d_256_2048"
+        generate_dataset_predict(las_files, output_dir, dataset_type='predict', grid_size=2048, mask=False)
+
+#======================================= Генерация облаков точек ======================================================
+    if gen_clouds_dataset_parallel:
+        from libs_parallel import process_las_files_gen_clouds_parallel
+        import json
+        # Укажите путь к вашему config.json
+        config_path = "config.json"
+        """Загружает настройки из config.json."""
+        with open(config_path, "r") as f:
+            config = json.load(f)
+            # Загружаем настройки
+            square_size = config["square_size"]
+            points_per_cloud = config["points_per_cloud"]
+            num_files = config["num_files"]
+            batches_per_file = config["batches_per_file"]
+            input_directory = config["input_directory"]
+            output_directory = config["output_directory"]
+            output_files = config["output_files"]
+            num_processes = config["num_processes"]  # Количество процессов для обработки файлов
+            os.makedirs(output_directory, exist_ok=True)
+
+        full_out_dir = os.path.join(output_directory,output_files)
+        # Пример вызова функции
+        start = time.time()
+        process_las_files_gen_clouds_parallel(input_directory, full_out_dir,
+                                              num_files=2,
+                                              num_points_lim=points_per_cloud,
+                                              num_processes=num_processes)
+        end = time.time()
+        print(f'Обработка завершена. Время: {end - start:.2f} секунд')
+
+
+
 # if gen_colored_las:
 #     # Пример использования
 #     # city
